@@ -26,7 +26,7 @@ function [] = schelling()
 
         % Save and display First Grid
         figure
-        displayGrid(grid, sprintf('Population Percentage: %0.2f, %s, Initial Frame', popPer, thresholdStr))
+        displayGrid(grid, sprintf('Population Percentage: %0.2f, %s, Before 1st Iteration', popPer, thresholdStr))
         saveas(gcf, sprintf('images/Pop%0.2f_%s_Initial.png', popPer, abbThresholdStr));
 
         mainModel(grid, popPer, threshold);
@@ -62,11 +62,10 @@ function [] = displayGrid(currGrid, titleString)
 end
 
 function [] = mainModel(grid, popPer, threshold)
-    %gridSatisfactionFlag = false;
     iterations = 1;
     maxIterations = 25;
     imgSaveItr = 5;
-    %     while (gridSatisfactionFlag == false)
+
     while (iterations <= maxIterations)
 
         if threshold == 5
@@ -82,7 +81,7 @@ function [] = mainModel(grid, popPer, threshold)
 
         if iterations == 1 || (mod(iterations, imgSaveItr) == 0) || iterations == maxIterations
             h = figure;
-            displayGrid(grid, sprintf('Population Percentage: %0.2f, %s, Iteration %d', popPer, thresholdStr, iterations))
+            displayGrid(grid, sprintf('Population Percentage: %0.2f, %s, After Iteration %d', popPer, thresholdStr, iterations))
             saveas(h, sprintf('images/Pop%0.2f_%s_Iteration%d.png', popPer, abbThresholdStr, iterations));
         end
 

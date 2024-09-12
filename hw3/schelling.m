@@ -3,39 +3,46 @@ function [] = schelling()
     clear;
     close all;
 
-    thresholds = [3, 4]; % update as necessary
+    mkdir('images');
+
+    thresholds = [3, 4, 5]; % update as necessary
     popPers = [0.6, 0.8]; % update as necessary
-    simluations = size(thresholds, 2) ^ size(popPers, 2);
+    simluations = size(thresholds, 2) * size(popPers, 2);
 
     parfor sim = 1:simluations
-        popPer = popPers(ceil(sim / size(thresholds, 2)));
-        threshold = thresholds(mod(sim - 1, size(thresholds, 2)) + 1);
+        threshold = thresholds(ceil(sim / size(popPers, 2)));
+        popPer = popPers(mod(sim - 1, size(popPers, 2)) + 1);
 
         % Initialize grid
-        grid = initGrid(popPer);
+        grid = initGrid(popPer, threshold);
+
+        if threshold == 5
+            thresholdStr = 'Threshold: 3-80%, 5-20%';
+            abbThresholdStr = 'Threshold3&5';
+        else
+            thresholdStr = sprintf('Threshold: %d', threshold);
+            abbThresholdStr = sprintf('Threshold%d', threshold);
+        end
 
         % Save and display First Grid
         figure
-        displayGrid(grid, sprintf('Pop %0.2f, Threshold %d, Initial Frame', popPer, threshold))
-        saveas(gcf, sprintf('Pop%0.2f_Threshold%d_Initial.png', popPer, threshold));
+        displayGrid(grid, sprintf('Population Percentage: %0.2f, %s, Initial Frame', popPer, thresholdStr))
+        saveas(gcf, sprintf('images/Pop%0.2f_%s_Initial.png', popPer, abbThresholdStr));
 
         mainModel(grid, popPer, threshold);
     end
 
 end
 
-function grid = initGrid(populationPercentage)
-    % we want, X(1) and O(-1) to take 20% each of the grid
-    % and blank space(0) remaining 60%
-    % reducing these numbers we can say that out of 5 entries we want
-    % three empty space(0), one X(1) and one O(-1)
-    if populationPercentage == 0.6
-        ratio = [0 0 0 -1 1]; % Proportion of the grid divided as per members
-    elseif populationPercentage == 0.8
-        ratio = [0 -1 -1 1 1]; % Proportion of the grid divided as per members
+function grid = initGrid(populationPercentage, threshold)
+
+    if threshold == 5
+        ratio = [zeros(1, cast(populationPercentage * 10, "int8")) + 5, zeros(1, cast(populationPercentage * 40, "int8")) + 3, zeros(1, cast((1 - populationPercentage) * 100, "int8")), zeros(1, populationPercentage * 40) - 3, zeros(1, cast(populationPercentage * 10, "int8")) - 5];
+    else
+        ratio = [zeros(1, cast(populationPercentage * 50, "int8")) + threshold, zeros(1, cast((1 - populationPercentage) * 100, "int8")), zeros(1, cast(populationPercentage * 50, "int8")) - threshold];
     end
 
-    temp = repmat(ratio, 1, 500); % randomly repeat this for 500 times
+    temp = repmat(ratio, 1, 25); % randomly repeat this for 500 times
     temp = temp(randperm(numel(temp))); % Jumble up those entries
     grid = reshape(temp, [50, 50]);
 end
@@ -57,17 +64,26 @@ end
 function [] = mainModel(grid, popPer, threshold)
     %gridSatisfactionFlag = false;
     iterations = 1;
-    maxIterations = 1000;
-    imgSaveItr = 100;
+    maxIterations = 25;
+    imgSaveItr = 5;
     %     while (gridSatisfactionFlag == false)
     while (iterations <= maxIterations)
-        disp(sprintf('Population Percentage %0.2f, Threshold %d, Iteration %d', popPer, threshold, iterations))
-        grid = mainShifting(grid, threshold);
+
+        if threshold == 5
+            thresholdStr = 'Threshold: 3-80%, 5-20%';
+            abbThresholdStr = 'Threshold3&5';
+        else
+            thresholdStr = sprintf('Threshold: %d', threshold);
+            abbThresholdStr = sprintf('Threshold%d', threshold);
+        end
+
+        fprintf('Population Percentage: %0.2f, %s, Iteration: %d\n', popPer, thresholdStr, iterations)
+        grid = mainShifting(grid);
 
         if iterations == 1 || (mod(iterations, imgSaveItr) == 0) || iterations == maxIterations
             h = figure;
-            displayGrid(grid, sprintf('Population Percentage %0.2f, Threshold %d, Iteration %d', popPer, threshold, iterations))
-            saveas(h, sprintf('Pop%0.2f_Threshold%d_Iteration%d.png', popPer, threshold, iterations));
+            displayGrid(grid, sprintf('Population Percentage: %0.2f, %s, Iteration %d', popPer, thresholdStr, iterations))
+            saveas(h, sprintf('images/Pop%0.2f_%s_Iteration%d.png', popPer, abbThresholdStr, iterations));
         end
 
         iterations = iterations + 1;
@@ -75,21 +91,25 @@ function [] = mainModel(grid, popPer, threshold)
 
 end
 
-function grid = mainShifting(grid, threshold)
+function grid = mainShifting(grid)
     x = 1;
     y = 2;
-    unhappyLocations = getAllUnhappy(grid, threshold);
+    unhappyLocations = getAllUnhappy(grid);
+
+    if isempty(unhappyLocations)
+        return
+    end
 
     for unhappyIndex = 1:length(unhappyLocations)
         currSadAgentLoc = unhappyLocations(unhappyIndex, :);
         currSadAgentVal = grid(currSadAgentLoc(x), currSadAgentLoc(y));
-        closestValidPoint = getClosestNewValidPoint(currSadAgentVal, currSadAgentLoc, grid, threshold);
+        closestValidPoint = getClosestNewValidPoint(currSadAgentVal, currSadAgentLoc, grid);
         grid = swapPoints(currSadAgentLoc, closestValidPoint, grid);
     end
 
 end
 
-function unHappy = getAllUnhappy(currGrid, threshold)
+function unHappy = getAllUnhappy(currGrid)
     unHappy = [];
     gridSize = size(currGrid);
 
@@ -99,7 +119,7 @@ function unHappy = getAllUnhappy(currGrid, threshold)
             currentCellValue = currGrid(x, y);
             location = [x, y];
 
-            if not(isValid(currentCellValue, location, currGrid, threshold))
+            if not(isValid(currentCellValue, location, currGrid))
                 unHappy = [unHappy; x, y];
             end
 
@@ -201,7 +221,7 @@ function dist = getChebyshevDistance(x1, y1, x2, y2)
     dist = max([abs(x2 - x1) abs(y2 - y1)]);
 end
 
-function validPoint = getClosestNewValidPoint(currAgentVal, currAgentLoc, currGrid, threshold)
+function validPoint = getClosestNewValidPoint(currAgentVal, currAgentLoc, currGrid)
     found = false;
     sortedDistList = closestEmptyPoints([currAgentLoc(1), currAgentLoc(2)], currGrid);
 
@@ -212,7 +232,7 @@ function validPoint = getClosestNewValidPoint(currAgentVal, currAgentLoc, currGr
         currEmptyLoc = sortedDistList(index, 2:3);
 
         % Check if the current empty location is valid
-        if isValid(currAgentVal, currEmptyLoc, currGrid, threshold)
+        if isValid(currAgentVal, currEmptyLoc, currGrid)
             % Found a valid point
             found = true;
             validPoint = currEmptyLoc;
@@ -229,7 +249,7 @@ function validPoint = getClosestNewValidPoint(currAgentVal, currAgentLoc, currGr
 end
 
 % Check if a given cells neighbors are similar to a given value
-function validity = isValid(val, loc, currGrid, threshold)
+function validity = isValid(val, loc, currGrid)
 
     % If the value is 0, it is always valid
     if val == 0
@@ -244,13 +264,13 @@ function validity = isValid(val, loc, currGrid, threshold)
     for indexNumber = 1:length(neighbors)
         currNeighborLoc = neighbors(indexNumber, :);
 
-        if val == currGrid(currNeighborLoc(1), currNeighborLoc(2))
+        if sign(val) == sign(currGrid(currNeighborLoc(1), currNeighborLoc(2)))
             sameNeighbor = sameNeighbor + 1;
         end
 
     end
 
-    if sameNeighbor >= threshold
+    if sameNeighbor >= abs(val)
         validity = true;
     end
 

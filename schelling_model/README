@@ -1,6 +1,7 @@
 The code can be executed by running the "schelling" file in Matlab. All simulations are run.
-It has no toolbox/add-on dependencies, but benefits from the Parallel Compute Toolbox.
-The Parallel Toolbox allows multiple simulations to run simultaneously.
+
+It has no toolbox/add-on dependencies, but benefits from the Parallel Compute Toolbox. The Parallel Toolbox allows multiple simulations to run simultaneously.
+
 All simulation snapshots will be deposited in a newly created "images" folder.
 
 Thanks,

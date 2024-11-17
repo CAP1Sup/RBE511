@@ -1,0 +1,106 @@
+#
+# In the ARGoS window, you can move the camera with the following commands:
+#
+# - Translation: W A S D Q E keys, right-click + drag
+# - Rotation: left-click + drag
+#
+# Selection: shift-click on the robot
+# Remove selection: shift-click elsewhere
+#
+# Bug: selection is finnicky in the top-down view (Camera 1).
+# Solution: switch to another camera and it'll work.
+#
+
+#
+# Compiling and running the code
+#
+# - In the ARGoS window: Pause the simulation (if it's not paused already)
+# - In the editor: do what you need, save, press the "Execute" button
+# - In the ARGoS window: Press the "Play", "Step", or "Fast Forward" buttons
+#
+
+function obstacle_avoidance() {
+    threshold = 0.5
+    drive_speed = 5.0
+    if (proximity[0].value > threshold) {
+        # Front sensor has detected an obstacle
+        set_wheels(drive_speed, -drive_speed/2) # turn left
+    } else if (proximity[1].value > threshold) {
+        # Left sensor has detected an obstacle
+        set_wheels(drive_speed, -drive_speed/2) # turn left
+    } else if (proximity[7].value > threshold) {
+        # Right sensor has detected an obstacle
+        set_wheels(-drive_speed/2, drive_speed) # turn right
+    } else {
+        # No obstacles detected
+        set_wheels(drive_speed, drive_speed) # go straight
+    }
+}
+
+function coupled_oscillators_init() {
+    flashing = 0
+
+    # Use a unique seed
+    math.rng.setseed(id)
+
+    # Constants/variables
+    k = 0.5
+    flashed = 0
+    c = math.rng.uniform(100)
+
+    # Set neighbor function
+    neighbors.listen("neighbor_flashing", function(vid, neighbor_flashing, rid) {
+        if (neighbor_flashing > 0) {
+            flashed = 1
+        }
+    })
+}
+
+function coupled_oscillators_step() {
+    # Run coupled oscillators algorithm
+    c = c + 1
+
+    if (flashed == 1) {
+        c = c + k * c
+    }
+
+    if (c >= 100) {
+        flashing = 1
+        c = 0
+        set_leds(255, 255, 255)
+    } else {
+        flashing = 0
+        set_leds(0, 0, 0)
+    }
+
+    # Broadcast flashing state
+    neighbors.broadcast("neighbor_flashing", flashing)
+}
+
+# This function is executed once at init time
+function init() {
+    # 0 for obstacle avoidance, 1 for coupled oscillators
+    mode = 0
+
+    if (mode != 0) {
+        coupled_oscillators_init()
+    }
+}
+
+# This function is executed at each time step
+# The main loop is controller by ARGoS
+function step() {
+    if (mode == 0) {
+        obstacle_avoidance()
+    } else {
+        coupled_oscillators_step()
+    }
+}
+
+# This function is executed when you press the reset button
+function reset() {
+}
+
+# This function is executed once when you close the simulator
+function destroy() {
+}

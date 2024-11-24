@@ -1,0 +1,189 @@
+# Reinforce parameter
+# Defined in slide 11
+# Chosen as in slide 17
+XSI = 10.0
+# Forget parameter
+# Defined in slide 11
+# Chosen as in slide 17
+PHI = 1.0
+# Spontaneous switching
+# Defined in slide 15
+# Chosen as in slide 17
+P = 0.2
+# Number of tasks: if you change this, you must also change the corresponding
+# parameter in the .argos file, line 107!
+TASKS = 2
+
+DT = 10
+
+#
+# Executed once at init time
+#
+function init() {
+  reset()
+}
+
+# Convenience functions
+function fixed_threshold(stim, resp_thres) {
+  return stim^2 / (stim^2 + resp_thres^2)
+}
+
+#
+# Executed for each step
+#
+function step() {
+  # Perform probabilistic switching explained in the slides
+  # Use the math.rng library
+  # See https://the.swarming.buzz/wiki/doku.php?id=buzz_manual#the_mathrng_library
+
+  # The stimulus is calculated by the ARGoS loop functions
+  # ARGoS "magically" inserts the variable 'stimulus' in the script of each robot
+  # It is defined as a table indexed by the number of the task, for example:
+  # stimulus = {
+  #   .0 = stimulus for task 0 (some float value),
+  #   .1 = stimulus for task 1 (some float value)
+  # }
+  # For details, check the file threshold_model.cpp
+  # Stimuli are initialized at lines 112-116
+  # Stimuli are updated at lines 150-153
+  # The magic that writes the stimuli into the scripts is at 75-96
+  # Feel free to read the code and play with it!
+
+  # Placeholder code, just to have the robots do something - you'll need to change this!
+  # 'task' is expected to be an integer variable, make sure it is at all times!
+  # See lines 9-70 to check how the loop functions fetch it from the Buzz scripts
+  # task = (task + 1) % TASKS
+  # The 'threshold' table is read by the ARGoS loop functions, so make sure not to use
+  # a different variable name
+  # See lines 9-70 to check how the loop functions fetch it from the Buzz scripts
+  # threshold[0] = threshold[0] + 1.5
+  # threshold[1] = threshold[1] + 2.5
+
+  if (i_before_update <= 0) {
+    # Reset the counter
+    i_before_update = DT
+
+	  log("Computing threshold change")
+
+    idle_time = 1.0
+    i = 0
+    while (i < TASKS) {
+      idle_time = idle_time - x[i]
+      i = i + 1
+    }
+
+    # Update the time fractions
+    i = 0
+    while (i < TASKS) {
+      x[i] = x[i] + math.rng.uniform(fixed_threshold(stimulus[i], threshold[i]) * 2.0) * idle_time - P * x[i]
+      i = i + 1
+    }
+
+    # Normalize the time fractions
+    sum_x = 0.0
+    i = 0
+    while (i < TASKS) {
+      sum_x = sum_x + x[i]
+      i = i + 1
+    }
+    if (sum_x > 1.0) {
+      i = 0
+      while (i < TASKS) {
+        x[i] = x[i] / sum_x
+        i = i + 1
+      }
+    }
+
+    # Update the task thresholds
+    i = 0
+    while (i < TASKS) {
+      # Calculate the new threshold
+      threshold[i] = threshold[i] - x[i] * XSI * DT + (1.0 - x[i]) * PHI * DT
+
+      # Bound the threshold between 0 and 1000
+      if (threshold[i] < 1.0) {
+        threshold[i] = 1.0
+      } else if (threshold[i] > 1000.0) {
+        threshold[i] = 1000.0
+      }
+
+      i = i + 1
+    }
+
+    # Pick a task
+    task = math.rng.uniform(TASKS - 1)
+  }
+
+  # Calculate the total time spent on tasks
+  sum_x = 0.0
+  i = 0
+  while (i < TASKS) {
+    sum_x = sum_x + x[i]
+    i = i + 1
+  }
+
+  # Check if the task should be switched
+  if (((DT - i_before_update) > x[task] * DT) and ((DT - i_before_update) < sum_x * DT)) {
+    # Switch to the next task
+    task = (task + 1) % TASKS
+  }
+
+  # Update the counter
+  i_before_update = i_before_update - 1
+}
+
+#
+# Executed once upon resetting
+#
+function reset() {
+  # Randomize the seed of the math library
+  math.rng.setseed(id)
+
+  # Initialize iterations and threshold times
+  i_before_update = 0
+  x = {}
+  i = 0
+  while (i < TASKS) {
+    x[i] = 0.0
+    i = i + 1
+  }
+
+  # Pick a default task
+  task = math.rng.uniform(TASKS - 1) # must be an integer between 0 and TASKS-1!
+
+  # Pick initial thresholds for the tasks
+  threshold = {}
+  random_initial_thresholds = 0 # Set to 1 to randomize thresholds, 0 to use a fixed value of 500.0
+  i = 0
+  while (i < TASKS + 1) {
+    if (random_initial_thresholds == 1) {
+      threshold[i] = math.rng.uniform(1000.0) # must be a float between 0.0 and 1000.0!
+    } else {
+      threshold[i] = 500.0
+    }
+    i = i + 1
+  }
+
+  # Debug output
+  debug_output()
+}
+
+#
+# Executed once upon closing ARGoS
+#
+function destroy() {
+  # Nothing to do
+}
+
+#
+# Helper function
+#
+function debug_output() {
+  # Examples of possible debug output
+
+  # Debug message written on top of robot
+  # See: https://the.swarming.buzz/wiki/doku.php?id=buzz_argos
+  debug.print("t=", task, "; th0=", threshold[0], "; th1=", threshold[1])
+  # Debug message written in the log
+  log("R", id, ": t=", task, "; th0=", threshold[0], "; th1=", threshold[1])
+}
